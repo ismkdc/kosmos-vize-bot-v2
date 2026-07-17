@@ -136,11 +136,11 @@ def wait_for_auth_input():
     """
     send_telegram(
         "Token süresi doldu.\n\n"
-        "Seçenek 1 — SMS'siz (önerilen):\n"
+        "Seçenek 1 - SMS'siz (önerilen):\n"
         "1. basvuru.kosmosvize.com.tr adresinden giriş yap\n"
         "2. F12 → Console: localStorage.getItem('Yh71OoPMuBY8T50ocWvJFw')\n"
         "3. Bota gönder: /token JWT_BURAYA\n\n"
-        "Seçenek 2 — SMS ile:\n"
+        "Seçenek 2 - SMS ile:\n"
         "SMS gönderiliyor... Gelince: /sms KODUNUZ"
     )
     # SMS'i arka planda gönder
@@ -267,7 +267,7 @@ while True:
         closed, expired = get_closed_dates(token, apt_type)
 
         if expired:
-            print("[auth] 401 — token süresi doldu")
+            print("[auth] 401 - token süresi doldu")
             token = None
             token_expired = True
             break
@@ -286,7 +286,7 @@ while True:
 
         prev = prev_closed[apt_type.name]
         if prev is None:
-            # İlk çalışma — baseline kur, bildirme
+            # İlk çalışma - baseline kur, bildirme
             prev_closed[apt_type.name] = closed
             print(f"[{apt_type.name}] Baseline: {len(closed)} kapalı, {len(available)} müsait")
         else:
@@ -304,5 +304,5 @@ while True:
         time.sleep(2)  # iki tip arasında kısa bekleme
 
     if not token_expired:
-        print(f"[loop] {datetime.now().strftime('%H:%M:%S')} — {POLL_INTERVAL}s bekleniyor")
+        print(f"[loop] {datetime.now().strftime('%H:%M:%S')} - {POLL_INTERVAL}s bekleniyor")
         time.sleep(POLL_INTERVAL)
