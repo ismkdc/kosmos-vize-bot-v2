@@ -56,7 +56,7 @@
 	<key>WFWorkflowMinimumClientVersionString</key>
 	<string>900</string>
 	<key>WFWorkflowName</key>
-	<string>Kosmos SMS → Telegram</string>
+	<string>Kosmos SMS Forwarder</string>
 	<key>WFWorkflowOutputContentItemClasses</key>
 	<array/>
 	<key>WFWorkflowTypes</key>

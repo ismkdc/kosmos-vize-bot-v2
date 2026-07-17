@@ -8,7 +8,7 @@ from curl_cffi import requests
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 
-# ── AES decrypt ───────────────────────────────────────────────────────────────
+# ── AES decryption ────────────────────────────────────────────────────────────
 _KEY_RAW = "aRöÜ@9/*½&7&$£]_?/ç".encode('utf-8')
 _KEY = _KEY_RAW + b'\x00' * (-len(_KEY_RAW) % 4)  # 23 → 24 byte (AES-192)
 _IV  = b'0' * 16
@@ -17,7 +17,7 @@ def decrypt(b64_text):
     cipher = AES.new(_KEY, AES.MODE_CBC, _IV)
     return unpad(cipher.decrypt(base64.b64decode(b64_text)), 16).decode('utf-8')
 
-# ── Enums ─────────────────────────────────────────────────────────────────────
+# ── Enums ──────────────────────────────────────────────────────────────────────
 class ApplicationType(Enum):
     INDIVIDUAL = 1
     FAMILY = 2
@@ -37,8 +37,8 @@ PEOPLE = [
 DEALER_ID = 1
 APPLICATION_TYPE = ApplicationType.FAMILY
 APPOINTMENT_TYPES = [AppointmentTypeId.STANDARD, AppointmentTypeId.VIP]
-CHECK_DAYS = 60       # kaç gün ileriye bakılsın
-POLL_INTERVAL = 600   # kaç saniyede bir kontrol (10 dk)
+CHECK_DAYS = 60       # how many days ahead to check
+POLL_INTERVAL = 600   # check interval in seconds (10 min)
 TOKEN_FILE = os.environ.get("TOKEN_FILE", "token.txt")
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -55,7 +55,7 @@ HEADERS = {
 }
 
 
-# ── Token yönetimi ────────────────────────────────────────────────────────────
+# ── Token management ──────────────────────────────────────────────────────────
 def save_token(token):
     with open(TOKEN_FILE, 'w') as f:
         f.write(token)
@@ -80,7 +80,7 @@ def is_token_valid(token):
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 def _cf_session():
-    """CF clearance için önce ana siteye istek at."""
+    """First request to main site for CF clearance."""
     s = requests.Session()
     s.get('https://basvuru.kosmosvize.com.tr/', impersonate='chrome')
     return s
@@ -106,7 +106,7 @@ def validate_sms(code):
     return None
 
 
-# ── Telegram ──────────────────────────────────────────────────────────────────
+# ── Telegram ───────────────────────────────────────────────────────────────────
 def send_telegram(message):
     for cid in CHAT_IDS:
         try:
@@ -131,19 +131,19 @@ def get_updates(offset=None):
 
 def wait_for_auth_input():
     """
-    /token JWT  → direkt token al (SMS gerektirmez)
-    /sms KOD    → SMS kodu al, backend'den token al
+    /token JWT  → get token directly (no SMS required)
+    /sms CODE   → get SMS code, obtain token from backend
     """
     send_telegram(
-        "Token süresi doldu.\n\n"
-        "Seçenek 1 - SMS'siz (önerilen):\n"
-        "1. basvuru.kosmosvize.com.tr adresinden giriş yap\n"
+        "Token has expired.\n\n"
+        "Option 1 - Without SMS (recommended):\n"
+        "1. Log in at basvuru.kosmosvize.com.tr\n"
         "2. F12 → Console: localStorage.getItem('Yh71OoPMuBY8T50ocWvJFw')\n"
-        "3. Bota gönder: /token JWT_BURAYA\n\n"
-        "Seçenek 2 - SMS ile:\n"
-        "SMS gönderiliyor... Gelince: /sms KODUNUZ"
+        "3. Send to bot: /token YOUR_JWT_HERE\n\n"
+        "Option 2 - With SMS:\n"
+        "SMS being sent... Once received: /sms YOUR_CODE"
     )
-    # SMS'i arka planda gönder
+    # Send SMS in background
     send_sms()
 
     offset = None
@@ -163,32 +163,32 @@ def wait_for_auth_input():
         time.sleep(2)
 
 def reauth():
-    print("[auth] Token geçersiz, yenileme bekleniyor...")
+    print("[auth] Token invalid, waiting for renewal...")
     kind, value = wait_for_auth_input()
 
     if kind == 'token':
         if is_token_valid(value):
             save_token(value)
-            send_telegram("Token kaydedildi, bot çalışıyor.")
+            send_telegram("Token saved, bot is running.")
             return value
         else:
-            send_telegram("Geçersiz/süresi dolmuş token. Tekrar dene.")
+            send_telegram("Invalid/expired token. Try again.")
             return None
 
     # kind == 'sms'
     token = validate_sms(value)
     if token:
         save_token(token)
-        send_telegram("Giriş başarılı, bot çalışıyor.")
+        send_telegram("Login successful, bot is running.")
     else:
-        send_telegram("Kod yanlış, tekrar deniyor...")
+        send_telegram("Wrong code, trying again...")
     return token
 
 
-# ── Ana sorgu: GetClosedDate (tek istek, tüm tarih aralığı) ───────────────────
+# ── Main query: GetClosedDate (single request, full date range) ──────────────
 def get_closed_dates(token, apt_type):
     """
-    Kapalı tarihleri döner. Dönen liste dışındaki tarihler = müsait.
+    Returns closed dates. Dates outside the returned list = available.
     Returns: (set of closed date strings, token_expired bool)
     """
     today    = datetime.now().strftime('%Y-%m-%d')
@@ -214,13 +214,13 @@ def get_closed_dates(token, apt_type):
                 wait = r.json().get('retryAfterSeconds', 60)
             except Exception:
                 wait = 60
-            print(f"[rate limit] {wait}s bekleniyor...")
+            print(f"[rate limit] waiting {wait}s...")
             time.sleep(wait + 2)
             continue
         if r.status_code == 200 and r.text.strip():
             try:
                 raw = json.loads(decrypt(r.text.strip()))
-                # API ISO 8601 döndürür: "2026-06-23T00:00:00+03:00" → "2026-06-23"
+                # API returns ISO 8601: "2026-06-23T00:00:00+03:00" → "2026-06-23"
                 dates = {d[:10] for d in raw}
                 return dates, False
             except Exception as e:
@@ -229,7 +229,7 @@ def get_closed_dates(token, apt_type):
 
 
 def token_expiry(token):
-    """JWT exp timestamp, hata varsa 0."""
+    """JWT exp timestamp, 0 on error."""
     try:
         payload = token.split('.')[1]
         payload += '=' * (-len(payload) % 4)
@@ -238,11 +238,11 @@ def token_expiry(token):
         return 0
 
 
-# ── Ana döngü ─────────────────────────────────────────────────────────────────
-send_telegram("Bot başladı, randevu takibi başlıyor.")
+# ── Main loop ─────────────────────────────────────────────────────────────────
+send_telegram("Bot started, appointment tracking begins.")
 token = load_token()
 prev_closed = {apt.name: None for apt in APPOINTMENT_TYPES}
-warned_expiry = False  # 24h uyarısı bir kez gönderilsin
+warned_expiry = False  # send 24h warning only once
 
 while True:
     if not is_token_valid(token):
@@ -252,12 +252,12 @@ while True:
             time.sleep(60)
             continue
 
-    # 24 saat kala uyar
+    # warn 24 hours before expiry
     exp = token_expiry(token)
     if not warned_expiry and 0 < exp - time.time() < 86400:
         send_telegram(
-            f"Token yaklaşık {int((exp - time.time()) / 3600)}h içinde dolacak.\n"
-            "Hazır olunca /token veya /sms ile yenileyebilirsin."
+            f"Token will expire in approximately {int((exp - time.time()) / 3600)}h.\n"
+            "You can renew it with /token or /sms when ready."
         )
         warned_expiry = True
 
@@ -267,7 +267,7 @@ while True:
         closed, expired = get_closed_dates(token, apt_type)
 
         if expired:
-            print("[auth] 401 - token süresi doldu")
+            print("[auth] 401 - token expired")
             token = None
             token_expired = True
             break
@@ -278,7 +278,7 @@ while True:
         today    = datetime.now().strftime('%Y-%m-%d')
         end_date = min(datetime.now() + timedelta(days=CHECK_DAYS), datetime(2026, 8, 1))
         all_days = set()
-        d = datetime.now() + timedelta(days=1)  # bugünü atla
+        d = datetime.now() + timedelta(days=1)  # skip today
         while d <= end_date:
             all_days.add(d.strftime('%Y-%m-%d'))
             d += timedelta(days=1)
@@ -286,23 +286,23 @@ while True:
 
         prev = prev_closed[apt_type.name]
         if prev is None:
-            # İlk çalışma - baseline kur, bildirme
+            # First run - set baseline, don't notify
             prev_closed[apt_type.name] = closed
-            print(f"[{apt_type.name}] Baseline: {len(closed)} kapalı, {len(available)} müsait")
+            print(f"[{apt_type.name}] Baseline: {len(closed)} closed, {len(available)} available")
         else:
-            # Yeni müsait olan tarihler (önceki kapalıydı, şimdi açık)
+            # Newly available dates (previously closed, now open)
             newly_available = sorted((prev - closed) & all_days)
             if newly_available:
-                msg = f"Randevu açıldı! ({apt_type.name})\n" + "\n".join(newly_available)
+                msg = f"Appointment opened! ({apt_type.name})\n" + "\n".join(newly_available)
                 send_telegram(msg)
-                print(f"[{apt_type.name}] YENİ MÜSAİT: {newly_available}")
+                print(f"[{apt_type.name}] NEWLY AVAILABLE: {newly_available}")
             prev_closed[apt_type.name] = closed
 
         if available:
-            print(f"[{apt_type.name}] Şu an müsait: {available}")
+            print(f"[{apt_type.name}] Currently available: {available}")
 
-        time.sleep(2)  # iki tip arasında kısa bekleme
+        time.sleep(2)  # short delay between types
 
     if not token_expired:
-        print(f"[loop] {datetime.now().strftime('%H:%M:%S')} - {POLL_INTERVAL}s bekleniyor")
+        print(f"[loop] {datetime.now().strftime('%H:%M:%S')} - waiting {POLL_INTERVAL}s")
         time.sleep(POLL_INTERVAL)
