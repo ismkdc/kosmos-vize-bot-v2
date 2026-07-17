@@ -1,0 +1,19 @@
+services:
+  kosmos-vize-bot:
+    build:
+      context: .
+      network: host
+    image: kosmos-vize-bot:latest
+    container_name: kosmos-vize-bot
+    restart: unless-stopped
+    network_mode: host
+    cpus: 0.5
+    environment:
+      - TZ=Europe/Istanbul
+    volumes:
+      - ./data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
